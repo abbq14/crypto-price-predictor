@@ -11,6 +11,22 @@ simulated live-signal bot for validation.
 > this to trade with real funds without independent testing and risk
 > management.
 
+## Web app
+
+An interactive [Streamlit](https://streamlit.io) dashboard wraps the model:
+pick a pair and timeframe, and it fetches live Binance data, shows the
+next-candle prediction with the model's confidence, and plots candlesticks
+with Bollinger Bands, RSI and MACD.
+
+```bash
+streamlit run streamlit_app.py
+```
+
+> **Model scope:** the model's features include raw price levels (SMA,
+> Bollinger Bands) fitted on BTC/USDT, so it is only meaningful near that
+> price range. Non-BTC pairs are out-of-distribution and produce
+> unreliable — often constant — predictions; the app flags this in the UI.
+
 ## How it works
 
 1. **`src/data_pipeline.py`** — pulls historical BTC/USDT OHLCV data from
@@ -68,6 +84,7 @@ pytest tests/
 
 ```
 .
+├── streamlit_app.py        # interactive web dashboard
 ├── src/
 │   ├── data_pipeline.py   # fetch + feature-engineer historical data
 │   ├── train_model.py     # train the RandomForest classifier

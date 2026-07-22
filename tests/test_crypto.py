@@ -30,9 +30,8 @@ class TestPredictFunction(unittest.TestCase):
         mock_df.__getitem__.return_value = fake_row
         mock_df.__contains__.return_value = True
         from main import predict
-        with patch("builtins.print"):
-            predict("BTC/USDT")
-        mock_joblib.load.assert_called_once_with('trading_model.pkl')
+        predict("BTC/USDT")
+        mock_joblib.load.assert_called_once_with('models/trading_model.pkl')
         mock_model.predict.assert_called_once()
 
     @patch("main.joblib")
@@ -58,10 +57,8 @@ class TestPredictFunction(unittest.TestCase):
         mock_df.__getitem__.return_value = fake_row
         mock_df.__contains__.return_value = True
         from main import predict
-        with patch("builtins.print") as mock_print:
-            predict("BTC/USDT")
-        calls = [c[0][0] for c in mock_print.call_args_list]
-        self.assertTrue(any("DOWN" in str(c) for c in calls))
+        result = predict("BTC/USDT")
+        self.assertEqual(result['direction'], "DOWN")
 
 
 class TestCalculateFeatures(unittest.TestCase):
@@ -118,7 +115,7 @@ class TestLiveBotConfig(unittest.TestCase):
         self.assertEqual(SYMBOL, 'BTC/USDT')
         self.assertEqual(TIMEFRAME, '5m')
         self.assertTrue(WS_URL.startswith('wss://'))
-        self.assertEqual(MODEL_PATH, 'trading_model.pkl')
+        self.assertEqual(MODEL_PATH, 'models/trading_model.pkl')
         self.assertEqual(len(FEATURE_COLS), 10)
 
     def test_env_vars_read(self):
