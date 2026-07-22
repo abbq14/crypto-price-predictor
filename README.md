@@ -1,5 +1,7 @@
 # Crypto Price Predictor
 
+[![tests](https://github.com/abbq14/crypto-price-predictor/actions/workflows/tests.yml/badge.svg)](https://github.com/abbq14/crypto-price-predictor/actions/workflows/tests.yml)
+
 A machine-learning pipeline that predicts short-term BTC/USDT price
 direction (up/down) from technical indicators, with a backtester and a
 simulated live-signal bot for validation.
@@ -35,8 +37,8 @@ streamlit run streamlit_app.py
 2. **`src/train_model.py`** — trains a `RandomForestClassifier` on those
    features to predict next-candle direction, and reports accuracy/precision/recall.
 3. **`src/backtest.py`** — replays the model's predictions over the
-   historical dataset with a simple position-sizing/fee model and plots the
-   resulting equity curve.
+   **held-out** portion of the dataset with a simple position-sizing/fee
+   model and plots the resulting equity curve.
 4. **`src/main.py`** — a CLI (`predict` command) that fetches the latest
    market data and prints the model's current direction prediction for a
    given symbol.
@@ -65,14 +67,49 @@ skip straight to step 4 or 5):
 ```bash
 python src/data_pipeline.py      # 1. pulls data -> data/historical_data.csv
 python src/train_model.py        # 2. trains model -> models/trading_model.pkl
-python src/backtest.py           # 3. backtests -> docs/equity_curve.png
+python src/backtest.py           # 3. out-of-sample backtest -> docs/equity_curve.png
 python src/main.py predict --symbol BTC/USDT   # 4. one-off prediction
 python src/live_bot.py           # 5. live simulated signal stream
 ```
 
-## Example backtest result
+## Results
+
+The dataset is split **chronologically** (80% train / 20% test) — never
+shuffled, since shuffling would let the model learn from candles that occur
+after the ones it is scored on. All numbers below are on the held-out 20%
+the model never saw during training.
+
+| Metric | Model | Baseline |
+| --- | --- | --- |
+| Accuracy | 0.5654 | 0.5288 (always predict majority class) |
+| Precision | 0.5285 | — |
+| Recall | 0.7222 | — |
+
+Backtest over the same held-out window (191 hourly candles, 20% position
+sizing, 0.1% fee per side):
+
+| | |
+| --- | --- |
+| Final equity | $992.24 (from $1,000) |
+| ROI | **-0.78%** |
+| Trades | 25 |
+| Win rate | 64.00% |
 
 ![Equity curve](docs/equity_curve.png)
+
+### Reading these numbers honestly
+
+The model beats the majority-class baseline by ~3.7 points of accuracy, but
+that edge does **not** survive trading fees: the out-of-sample backtest ends
+slightly down. A 64% win rate alongside a negative ROI is the expected
+signature of many small wins and fewer, larger losses.
+
+This is worth stating plainly because the obvious way to run this backtest
+gives a very different answer. Scoring the model over the *full* dataset
+reports a 95.91% win rate and +11.53% ROI — but 80% of those rows are the
+model's own training data, which an unpruned RandomForest reproduces at
+100% in-sample accuracy. That figure measures memorisation, not skill.
+`backtest.py` therefore evaluates only the held-out slice.
 
 ## Testing
 
@@ -84,6 +121,8 @@ pytest tests/
 
 ```
 .
+├── .github/workflows/
+│   └── tests.yml           # CI: pytest on Python 3.11-3.13
 ├── streamlit_app.py        # interactive web dashboard
 ├── src/
 │   ├── data_pipeline.py   # fetch + feature-engineer historical data
@@ -94,7 +133,7 @@ pytest tests/
 ├── scripts/
 │   └── api_test.py         # manual Binance connectivity check
 ├── tests/
-│   └── test_crypto.py      # unit tests for main.py
+│   └── test_crypto.py      # unit tests for main.py / live_bot.py / backtest.py
 ├── data/
 │   └── historical_data.csv # engineered feature dataset
 ├── models/

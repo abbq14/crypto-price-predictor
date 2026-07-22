@@ -2,12 +2,11 @@ import pandas as pd
 import joblib
 import matplotlib.pyplot as plt
 
+from train_model import FEATURE_COLS, TRAIN_SPLIT
+
 INITIAL_BALANCE = 1000.0
 POSITION_SIZE = 0.2
 FEE_RATE = 0.001
-
-FEATURE_COLS = ['RSI', 'MACD', 'MACD_signal', 'MACD_diff', 'SMA_20', 'SMA_50',
-                'BB_upper', 'BB_middle', 'BB_lower', 'Volume']
 
 
 def run_backtest(df, model):
@@ -48,8 +47,16 @@ def run_backtest(df, model):
 
 
 def main():
-    df = pd.read_csv('data/historical_data.csv', index_col='timestamp')
+    full_df = pd.read_csv('data/historical_data.csv', index_col='timestamp')
     model = joblib.load('models/trading_model.pkl')
+
+    # Backtest only the rows the model was never trained on. An unpruned
+    # RandomForest scores ~1.0 in-sample, so replaying the full file mostly
+    # measures memorisation: it reports a ~96% win rate that collapses to
+    # roughly coin-flip performance on unseen data. Anything above this split
+    # point is the only honest estimate of how the strategy generalises.
+    split_idx = int(len(full_df) * TRAIN_SPLIT)
+    df = full_df.iloc[split_idx:].copy()
 
     df, total_trades, winning_trades = run_backtest(df, model)
 
@@ -57,6 +64,8 @@ def main():
     roi = ((final_equity - INITIAL_BALANCE) / INITIAL_BALANCE) * 100
     win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
 
+    print(f"Out-of-sample backtest: {len(df)} held-out candles "
+          f"({df.index[0]} to {df.index[-1]})")
     print(f"Starting Balance: $1000.00")
     print(f"Final Equity:     ${final_equity:.2f}")
     print(f"Total ROI:        {roi:.2f}%")
@@ -65,7 +74,7 @@ def main():
 
     plt.figure(figsize=(12, 6))
     plt.plot(df.index, df['Equity'], label='Portfolio Value', color='blue')
-    plt.title('Model Backtest Equity Curve (BTC/USDT)')
+    plt.title('Out-of-Sample Backtest Equity Curve (BTC/USDT, held-out 20%)')
     plt.ylabel('Portfolio Value ($)')
     plt.xlabel('Date')
     plt.xticks(rotation=45)

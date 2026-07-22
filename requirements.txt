@@ -1,6 +1,9 @@
 ccxt>=4.0.0
 pandas>=2.0.0
-scikit-learn>=1.3.0
+# Pinned to the minor series that produced models/trading_model.pkl. Loading a
+# pickle across scikit-learn minor versions raises InconsistentVersionWarning
+# and is not guaranteed to behave identically.
+scikit-learn>=1.9.0,<1.10.0
 joblib>=1.3.0
 ta>=0.10.0
 matplotlib>=3.5.0
