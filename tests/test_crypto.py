@@ -1,3 +1,4 @@
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -67,7 +68,14 @@ class TestCalculateFeatures(unittest.TestCase):
         import pandas as pd
         import numpy as np
         dates = pd.date_range("2026-01-01", periods=100, freq="h")
-        df = pd.DataFrame({"Close": np.random.randn(100).cumsum() + 50000}, index=dates)
+        close = np.random.randn(100).cumsum() + 50000
+        df = pd.DataFrame({
+            "Open": close - 10,
+            "High": close + 50,
+            "Low": close - 50,
+            "Close": close,
+            "Volume": np.random.rand(100) * 100,
+        }, index=dates)
         mock_rsi = MagicMock()
         mock_rsi.rsi.return_value = pd.Series(np.random.rand(100))
         mock_ta.momentum.RSIIndicator.return_value = mock_rsi
@@ -84,10 +92,13 @@ class TestCalculateFeatures(unittest.TestCase):
         mock_bb.bollinger_mavg.return_value = pd.Series(np.random.rand(100))
         mock_bb.bollinger_lband.return_value = pd.Series(np.random.rand(100))
         mock_ta.volatility.BollingerBands.return_value = mock_bb
+        mock_atr = MagicMock()
+        mock_atr.average_true_range.return_value = pd.Series(np.random.rand(100))
+        mock_ta.volatility.AverageTrueRange.return_value = mock_atr
         from live_bot import calculate_features
         result = calculate_features(df.copy())
         expected_cols = ['RSI', 'MACD', 'MACD_signal', 'MACD_diff',
-                         'SMA_20', 'SMA_50', 'BB_upper', 'BB_middle', 'BB_lower']
+                         'SMA_20', 'SMA_50', 'BB_upper', 'BB_middle', 'BB_lower', 'ATR']
         for col in expected_cols:
             self.assertIn(col, result.columns)
 
@@ -119,8 +130,20 @@ class TestLiveBotConfig(unittest.TestCase):
         self.assertEqual(len(FEATURE_COLS), 10)
 
     def test_env_vars_read(self):
-        from live_bot import API_KEY, SECRET
-        self.assertIsNotNone(API_KEY)
+        import importlib
+        import live_bot
+        env = {'BINANCE_TESTNET_API_KEY': 'test-key',
+               'BINANCE_TESTNET_SECRET': 'test-secret'}
+        # live_bot reads the env at import time, so patch the environment and
+        # reload rather than depending on a developer's local .env file.
+        # load_dotenv is stubbed out so a real .env cannot interfere either.
+        try:
+            with patch.dict(os.environ, env), patch('dotenv.load_dotenv'):
+                importlib.reload(live_bot)
+                self.assertEqual(live_bot.API_KEY, 'test-key')
+                self.assertEqual(live_bot.SECRET, 'test-secret')
+        finally:
+            importlib.reload(live_bot)
 
 
 class TestBacktestConfig(unittest.TestCase):
